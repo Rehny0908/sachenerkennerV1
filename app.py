@@ -6,39 +6,46 @@ import numpy as np
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
 
-# Teachable Machine Modell und Labels laden
+# Load the model
 model = load_model("keras_Model.h5", compile=False)
+
+# Load the labels
 class_names = open("labels.txt", "r").readlines()
 
-# Titel der App
-st.title("Ernstheits-Klassifikation")
-
-# Bild hochladen
-uploaded_file = st.file_uploader("Lade ein Bild hoch", type=["jpg", "jpeg", "png"])
-
-if uploaded_file is not None:
-    # Bild anzeigen
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption='Hochgeladenes Bild.', use_column_width=True)
-
-    # Bild vorbereiten
+def load_image(image_path):
+    """Lädt und bearbeitet das Bild für die Vorhersage."""
+    image = Image.open(image_path).convert("RGB")
     size = (224, 224)
     image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
-    
-    # Erstelle das Array zur Eingabe ins Modell
-    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
-    image_array = np.asarray(image)
-    
-    # Normalisieren des Bildes
-    normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
-    data[0] = normalized_image_array
 
-    # Vorhersage treffen
-    prediction = model.predict(data)
+    image_array = np.asarray(image)
+    normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
+    return np.expand_dims(normalized_image_array, axis=0)
+
+def predict(image_array):
+    """Gibt die Vorhersage des Modells für das Bild zurück."""
+    prediction = model.predict(image_array)
     index = np.argmax(prediction)
     class_name = class_names[index].strip()
     confidence_score = prediction[0][index]
+    return class_name, confidence_score
 
-    # Ergebnis anzeigen
-    st.write(f"Das Bild wird klassifiziert als: **{class_name}**")
-    st.write(f"Konfidenzscore: **{confidence_score:.2f}**")
+st.title("Klassifikation von Hüten, Schuhen und Shirts")
+st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
+
+# Bild-Upload-Funktion
+uploaded_file = st.file_uploader("Wählen Sie ein Bild aus...", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    # Bild anzeigen
+    st.image(uploaded_file, caption="Hochgeladenes Bild.", use_column_width=True)
+    
+    # Bildverarbeitung
+    image_array = load_image(uploaded_file)
+    
+    # Vorhersage
+    class_name, confidence_score = predict(image_array)
+    
+    # Ergebnisse anzeigen
+    st.write(f"**Vorhersage:** {class_name}")
+    st.write(f"**Konfidenzscore:** {confidence_score:.2f}")
