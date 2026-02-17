@@ -1,11 +1,14 @@
 import streamlit as st
-from PIL import Image
+from keras.models import load_model
+from PIL import Image, ImageOps
 import numpy as np
-import tensorflow as tf
 
-# Teachable Machine Modell laden
-MODEL_PATH = "model_path_here"  # Pfad zum exportierten Teachable Machine Modell
-model = tf.keras.models.load_model(MODEL_PATH)
+# Disable scientific notation for clarity
+np.set_printoptions(suppress=True)
+
+# Teachable Machine Modell und Labels laden
+model = load_model("keras_Model.h5", compile=False)
+class_names = open("labels.txt", "r").readlines()
 
 # Titel der App
 st.title("Ernstheits-Klassifikation")
@@ -15,17 +18,27 @@ uploaded_file = st.file_uploader("Lade ein Bild hoch", type=["jpg", "jpeg", "png
 
 if uploaded_file is not None:
     # Bild anzeigen
-    image = Image.open(uploaded_file)
+    image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption='Hochgeladenes Bild.', use_column_width=True)
 
-    # Bild in das erforderliche Format umwandeln
-    img_array = np.array(image.resize((224, 224))) / 255.0  # Größe je nach Teachable Machine
-    img_array = np.expand_dims(img_array, axis=0)
+    # Bild vorbereiten
+    size = (224, 224)
+    image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
+    
+    # Erstelle das Array zur Eingabe ins Modell
+    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+    image_array = np.asarray(image)
+    
+    # Normalisieren des Bildes
+    normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
+    data[0] = normalized_image_array
 
     # Vorhersage treffen
-    predictions = model.predict(img_array)
-    class_names = ["Nicht ernst", "Ernst"]  # Ändere dies entsprechend deinem Modell
-    predicted_class = class_names[np.argmax(predictions)]
+    prediction = model.predict(data)
+    index = np.argmax(prediction)
+    class_name = class_names[index].strip()
+    confidence_score = prediction[0][index]
 
     # Ergebnis anzeigen
-    st.write(f"Das Bild wird klassifiziert als: **{predicted_class}**")
+    st.write(f"Das Bild wird klassifiziert als: **{class_name}**")
+    st.write(f"Konfidenzscore: **{confidence_score:.2f}**")
