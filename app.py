@@ -35,11 +35,21 @@ def predict(image_array):
 
 def save_to_supabase(class_name, confidence_score):
     """Speichert die Vorhersage in der Supabase-Datenbank."""
-    data = {"class_name": class_name, "confidence_score": confidence_score}
+    data = {
+        "class_name": str(class_name),          
+        "confidence_score": float(confidence_score)
+    }
     print(f"Saving to Supabase: {data}")  # Debugging-Ausgabe
     supabase.table("classifications").insert(data).execute()
 
+def upload_file_to_supabase(file):
+    """Lädt eine Datei in den Supabase Storage Bucket hoch."""
+    bucket_name = "uploaded_images"  # Name des Buckets
+    file_name = file.name
+    response = supabase.storage.from_(bucket_name).upload(file_name, file)
 
+    print("Upload response:", response)
+    return response
 
 st.title("Klassifikation von Hüten, Schuhen und Shirts")
 st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
@@ -48,7 +58,10 @@ st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
 uploaded_file = st.file_uploader("Wählen Sie ein Bild aus...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    st.image(uploaded_file, caption="Hochgeladenes Bild.", use_column_width=True)
+    # Lade die Datei in den Supabase Bucket hoch
+    upload_response = upload_file_to_supabase(uploaded_file)
+
+    # Bildverarbeitung
     image_array = load_image(uploaded_file)
     class_name, confidence_score = predict(image_array)
 
@@ -63,5 +76,6 @@ if uploaded_file is not None:
     else:
         color = "red"
 
+    # Ergebnisse anzeigen
     st.markdown(f"<h3 style='color:{color};'>**Vorhersage:** {class_name}</h3>", unsafe_allow_html=True)
     st.write(f"**Konfidenzscore:** {confidence_score:.2f}")
