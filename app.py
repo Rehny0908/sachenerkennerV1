@@ -4,18 +4,15 @@ from PIL import Image, ImageOps
 import numpy as np
 from supabase import create_client, Client
 
-# Disable scientific notation for clarity
-np.set_printoptions(suppress=True)
-
-# Supabase Konfiguration
-url = "DEINE_SUPABASE_URL"
-key = "DEIN_SUPABASE_ANON_KEY"
+# Supabase-Client initialisieren
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
-# Load the model
+# Laden des Modells
 model = load_model("keras_model.h5", compile=False)
 
-# Load the labels
+# Laden der Labels
 class_names = open("labels.txt", "r").readlines()
 
 def load_image(image_path):
@@ -48,13 +45,8 @@ st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
 uploaded_file = st.file_uploader("Wählen Sie ein Bild aus...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Bild anzeigen
     st.image(uploaded_file, caption="Hochgeladenes Bild.", use_column_width=True)
-    
-    # Bildverarbeitung
     image_array = load_image(uploaded_file)
-    
-    # Vorhersage
     class_name, confidence_score = predict(image_array)
 
     # Ergebnisse speichern
@@ -68,6 +60,5 @@ if uploaded_file is not None:
     else:
         color = "red"
 
-    # Ergebnisse anzeigen
     st.markdown(f"<h3 style='color:{color};'>**Vorhersage:** {class_name}</h3>", unsafe_allow_html=True)
     st.write(f"**Konfidenzscore:** {confidence_score:.2f}")
