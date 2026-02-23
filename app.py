@@ -3,6 +3,9 @@ from keras.models import load_model
 from PIL import Image, ImageOps
 import numpy as np
 from supabase import create_client, Client
+import uuid
+
+
 
 # Supabase-Client initialisieren
 url = st.secrets["SUPABASE_URL"]
@@ -43,16 +46,21 @@ def save_to_supabase(class_name, confidence_score):
     supabase.table("classifications").insert(data).execute()
 
 def upload_file_to_supabase(file):
-    """Lädt eine Datei in den Supabase Storage Bucket hoch."""
-    bucket_name = "uploaded_images"  # Name des Buckets
-    file_name = file.name
+    bucket_name = "uploaded_images"
+    
+    unique_name = f"{uuid.uuid4()}_{file.name}"
+    file_content = file.getvalue()
 
-    # Inhalt der Datei lesen
-    file_content = file.getvalue()  # Holen des Inhalts als Bytes
+    response = supabase.storage.from_(bucket_name).upload(
+        unique_name,
+        file_content,
+        {"upsert": True}  # erlaubt Überschreiben
+    )
 
-    response = supabase.storage.from_(bucket_name).upload(file_name, file_content)
-    print("Upload response:", response)
     return response
+
+
+
 
 
 st.title("Klassifikation von Hüten, Schuhen und Shirts")
