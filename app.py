@@ -2,30 +2,21 @@ import streamlit as st
 from keras.models import load_model
 from PIL import Image, ImageOps
 import numpy as np
-import sqlite3
+from supabase import create_client, Client
 
 # Disable scientific notation for clarity
 np.set_printoptions(suppress=True)
+
+# Supabase Konfiguration
+url = "DEINE_SUPABASE_URL"
+key = "DEIN_SUPABASE_ANON_KEY"
+supabase: Client = create_client(url, key)
 
 # Load the model
 model = load_model("keras_model.h5", compile=False)
 
 # Load the labels
 class_names = open("labels.txt", "r").readlines()
-
-# Connect to SQLite database
-conn = sqlite3.connect('classifications.db')
-c = conn.cursor()
-
-# Create table if not exists
-c.execute('''
-CREATE TABLE IF NOT EXISTS results (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    class_name TEXT,
-    confidence_score REAL
-)
-''')
-conn.commit()
 
 def load_image(image_path):
     """Lädt und bearbeitet das Bild für die Vorhersage."""
@@ -45,16 +36,10 @@ def predict(image_array):
     confidence_score = prediction[0][index]
     return class_name, confidence_score
 
-def save_to_db(class_name, confidence_score):
-    """Speichert die Vorhersage in der SQLite-Datenbank."""
-    c.execute("INSERT INTO results (class_name, confidence_score) VALUES (?, ?)",
-              (class_name, confidence_score))
-    conn.commit()
-
-def fetch_results():
-    """Lädt alle Klassifikationsergebnisse aus der SQLite-Datenbank."""
-    c.execute("SELECT * FROM results")
-    return c.fetchall()
+def save_to_supabase(class_name, confidence_score):
+    """Speichert die Vorhersage in der Supabase-Datenbank."""
+    data = {"class_name": class_name, "confidence_score": confidence_score}
+    supabase.table("classifications").insert(data).execute()
 
 st.title("Klassifikation von Hüten, Schuhen und Shirts")
 st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
@@ -73,7 +58,7 @@ if uploaded_file is not None:
     class_name, confidence_score = predict(image_array)
 
     # Ergebnisse speichern
-    save_to_db(class_name, confidence_score)
+    save_to_supabase(class_name, confidence_score)
 
     # Dynamisches Farb-Tag für das Ergebnis
     if confidence_score > 0.7:
@@ -86,12 +71,3 @@ if uploaded_file is not None:
     # Ergebnisse anzeigen
     st.markdown(f"<h3 style='color:{color};'>**Vorhersage:** {class_name}</h3>", unsafe_allow_html=True)
     st.write(f"**Konfidenzscore:** {confidence_score:.2f}")
-
-st.subheader("Frühere Ergebnisse")
-results = fetch_results()
-
-if results:
-    for result in results:
-        st.write(f"Klassifikation: {result[1]}, Konfidenzscore: {result[2]:.2f}")
-else:
-    st.write("Keine gespeicherten Ergebnisse.")
