@@ -36,7 +36,10 @@ def predict(image_array):
 def save_to_supabase(class_name, confidence_score):
     """Speichert die Vorhersage in der Supabase-Datenbank."""
     data = {"class_name": class_name, "confidence_score": confidence_score}
+    print(f"Saving to Supabase: {data}")  # Debugging-Ausgabe
     supabase.table("classifications").insert(data).execute()
+
+
 
 st.title("Klassifikation von Hüten, Schuhen und Shirts")
 st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
