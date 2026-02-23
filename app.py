@@ -45,6 +45,7 @@ def save_to_supabase(class_name, confidence_score):
     print(f"Saving to Supabase: {data}")  # Debugging-Ausgabe
     supabase.table("classifications").insert(data).execute()
 
+
 def upload_file_to_supabase(file):
     bucket_name = "uploaded_images"
     
@@ -52,9 +53,9 @@ def upload_file_to_supabase(file):
     file_content = file.getvalue()
 
     response = supabase.storage.from_(bucket_name).upload(
-        unique_name,
-        file_content,
-        {"upsert": True}  # erlaubt Überschreiben
+        path=unique_name,
+        file=file_content,
+        file_options={"upsert": "true"}  # STRING, nicht Boolean!
     )
 
     return response
