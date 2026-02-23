@@ -46,10 +46,14 @@ def upload_file_to_supabase(file):
     """Lädt eine Datei in den Supabase Storage Bucket hoch."""
     bucket_name = "uploaded_images"  # Name des Buckets
     file_name = file.name
-    response = supabase.storage.from_(bucket_name).upload(file_name, file)
 
+    # Inhalt der Datei lesen
+    file_content = file.getvalue()  # Holen des Inhalts als Bytes
+
+    response = supabase.storage.from_(bucket_name).upload(file_name, file_content)
     print("Upload response:", response)
     return response
+
 
 st.title("Klassifikation von Hüten, Schuhen und Shirts")
 st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
