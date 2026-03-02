@@ -62,12 +62,8 @@ def upload_file_to_supabase(file):
 def fetch_uploaded_images():
     """Lädt bereits hochgeladene Bilder aus der Supabase-Datenbank."""
     try:
-        response = supabase.table("classifications").select("class_name, confidence_score").execute()
+        response = supabase.table("classifications").select("id, class_name, confidence_score, image_path").execute()
         
-        # Ausgabe der gesamten Antwort zu Debugging-Zwecken
-        st.write("Response:", response)  # Debugging-Ausgabe
-        
-        # Überprüfe, ob die Anfrage erfolgreich war
         if response.status_code != 200:
             st.error(f"Fehler beim Abrufen der Daten: {response.data}")
             return []
@@ -79,16 +75,18 @@ def fetch_uploaded_images():
 
 
 
+
 def display_uploaded_images():
     """Zeigt die hochgeladenen Bilder an."""
     images = fetch_uploaded_images()
-    bucket_url = "https://your-supabase-project-url.supabase.co/storage/v1/object/public/uploaded_images/"  # Ersetze durch deine URL
+    bucket_url = "https://your-supabase-project-url.supabase.co/storage/v1/object/public/uploaded_images/"
 
     if images:
         for item in images:
-            st.image(f"{bucket_url}{item['class_name']}", caption=f"Klassifizierung: {item['class_name']}, Konfidenz: {item.get('confidence_score', 'N/A')}")
+            st.image(f"{bucket_url}{item['image_path']}", caption=f"Klassifizierung: {item['class_name']}, Konfidenz: {item['confidence_score']:.2f}")
     else:
         st.write("Keine hochgeladenen Bilder gefunden.")
+
 
 
 st.title("Klassifikation von Hüten, Schuhen und Shirts")
@@ -98,23 +96,23 @@ st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
 uploaded_file = st.file_uploader("Wählen Sie ein Bild aus...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Lade das Bild in den Supabase Bucket hoch
+    # Lade das Bild in den Supabase Bucket hoch und erhalte den eindeutigen Namen
     unique_name = upload_file_to_supabase(uploaded_file)
 
     # Bildverarbeitung
     image_array = load_image(uploaded_file)
     class_name, confidence_score = predict(image_array)
 
-    # Ergebnisse speichern
-    save_to_supabase(unique_name, confidence_score)
+    # Ergebnisse speichern, einschließlich des Pfades
+    save_to_supabase(class_name, confidence_score, unique_name)
 
     # Dynamisches Farb-Tag für das Ergebnis
-    if confidence_score > 0.7:
-        color = "green"
-    elif confidence_score > 0.5:
-        color = "yellow"
-    else:
-        color = "red"
+    color = "green" if confidence_score > 0.7 else "yellow" if confidence_score > 0.5 else "red"
+
+    # Ergebnisse anzeigen
+    st.markdown(f"<h3 style='color:{color};'>**Vorhersage:** {class_name}</h3>", unsafe_allow_html=True)
+    st.write(f"**Konfidenzscore:** {confidence_score:.2f}")
+
 
     # Ergebnisse anzeigen
     st.markdown(f"<h3 style='color:{color};'>**Vorhersage:** {class_name}</h3>", unsafe_allow_html=True)
