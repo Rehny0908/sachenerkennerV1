@@ -9,14 +9,15 @@ import uuid
 # SUPABASE SETUP
 # ==============================
 
-url = st.secrets["SUPABASE_URL"]
-key = st.secrets["SUPABASE_KEY"]
-supabase = create_client(url, key)
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 BUCKET_NAME = "uploaded_images"
 
 # ==============================
-# MODEL LOAD
+# LOAD MODEL
 # ==============================
 
 model = load_model("keras_model.h5", compile=False)
@@ -74,7 +75,11 @@ def save_to_supabase(class_name, confidence_score, image_path):
 
 
 def fetch_uploaded_images():
-    response = supabase.table("classifications").select("*").order("id", desc=True).execute()
+    response = supabase.table("classifications") \
+        .select("*") \
+        .order("id", desc=True) \
+        .execute()
+
     return response.data if response.data else []
 
 # ==============================
@@ -82,13 +87,13 @@ def fetch_uploaded_images():
 # ==============================
 
 st.title("Klassifikation von Hüten, Schuhen und Shirts")
-st.write("Laden Sie ein Bild hoch, um es zu klassifizieren.")
+st.write("Lade ein Bild hoch zur Klassifikation.")
 
 uploaded_file = st.file_uploader("Bild auswählen", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
 
-    # Upload to Supabase Storage
+    # Upload Image
     image_path = upload_file_to_supabase(uploaded_file)
 
     # Predict
@@ -98,7 +103,7 @@ if uploaded_file is not None:
     # Save to DB
     save_to_supabase(class_name, confidence_score, image_path)
 
-    # Show result
+    # Show Result
     color = "green" if confidence_score > 0.7 else "orange" if confidence_score > 0.5 else "red"
 
     st.markdown(
@@ -108,7 +113,7 @@ if uploaded_file is not None:
     st.write(f"Konfidenz: {confidence_score:.2f}")
 
 # ==============================
-# DISPLAY PREVIOUS IMAGES
+# DISPLAY IMAGES
 # ==============================
 
 st.subheader("Bereits hochgeladene Bilder")
@@ -117,7 +122,7 @@ images = fetch_uploaded_images()
 
 if images:
     for item in images:
-        public_url = supabase.storage.from_("uploaded_images").get_public_url(item["image_path"])
+        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(item["image_path"])
         st.image(
             public_url,
             caption=f"{item['class_name']} ({item['confidence_score']:.2f})"
