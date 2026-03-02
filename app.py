@@ -61,8 +61,16 @@ def upload_file_to_supabase(file):
 
 def fetch_uploaded_images():
     """Lädt bereits hochgeladene Bilder aus der Supabase-Datenbank."""
-    response = supabase.table("classifications").select("class_name, created_at").execute()
-    return response.data
+    try:
+        response = supabase.table("classifications").select("class_name, confidence_score").execute()
+        if response.error:
+            st.error(f"Fehler beim Abrufen der Daten: {response.error['message']}")
+            return []
+        return response.data
+    except Exception as e:
+        st.error(f"Ein Fehler ist aufgetreten: {str(e)}")
+        return []
+
 
 def display_uploaded_images():
     """Zeigt die hochgeladenen Bilder an."""
@@ -71,9 +79,10 @@ def display_uploaded_images():
 
     if images:
         for item in images:
-            st.image(f"{bucket_url}{item['class_name']}", caption=f"{item['class_name']}, hochgeladen am {item['created_at']}")
+            st.image(f"{bucket_url}{item['class_name']}", caption=f"Klassifizierung: {item['class_name']}, Konfidenz: {item.get('confidence_score', 'N/A')}")
     else:
         st.write("Keine hochgeladenen Bilder gefunden.")
+
 
 st.title("Klassifikation von Hüten, Schuhen und Shirts")
 st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
