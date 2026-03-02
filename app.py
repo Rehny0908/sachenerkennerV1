@@ -63,13 +63,20 @@ def fetch_uploaded_images():
     """Lädt bereits hochgeladene Bilder aus der Supabase-Datenbank."""
     try:
         response = supabase.table("classifications").select("class_name, confidence_score").execute()
-        if response.error:
-            st.error(f"Fehler beim Abrufen der Daten: {response.error['message']}")
+        
+        # Ausgabe der gesamten Antwort zu Debugging-Zwecken
+        st.write("Response:", response)  # Debugging-Ausgabe
+        
+        # Überprüfe, ob die Anfrage erfolgreich war
+        if response.status_code != 200:
+            st.error(f"Fehler beim Abrufen der Daten: {response.data}")
             return []
+        
         return response.data
     except Exception as e:
         st.error(f"Ein Fehler ist aufgetreten: {str(e)}")
         return []
+
 
 
 def display_uploaded_images():
