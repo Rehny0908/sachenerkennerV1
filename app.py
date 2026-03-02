@@ -75,8 +75,7 @@ def save_to_supabase(class_name, confidence_score, image_path):
 
 def fetch_uploaded_images():
     response = supabase.table("classifications").select("*").order("id", desc=True).execute()
-    return response.data
-
+    return response.data if response.data else []
 
 # ==============================
 # UI
@@ -118,7 +117,7 @@ images = fetch_uploaded_images()
 
 if images:
     for item in images:
-        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(item["image_path"])
+        public_url = supabase.storage.from_("uploaded_images").get_public_url(item["image_path"])
         st.image(
             public_url,
             caption=f"{item['class_name']} ({item['confidence_score']:.2f})"
