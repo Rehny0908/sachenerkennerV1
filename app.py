@@ -4,8 +4,8 @@ from PIL import Image, ImageOps
 import numpy as np
 from supabase import create_client, Client
 import uuid
-
-
+import requests
+from io import BytesIO
 
 # Supabase-Client initialisieren
 url = st.secrets["SUPABASE_URL"]
@@ -39,14 +39,13 @@ def predict(image_array):
 def save_to_supabase(class_name, confidence_score):
     """Speichert die Vorhersage in der Supabase-Datenbank."""
     data = {
-        "class_name": str(class_name),          
+        "class_name": str(class_name),
         "confidence_score": float(confidence_score)
     }
-    print(f"Saving to Supabase: {data}")  # Debugging-Ausgabe
     supabase.table("classifications").insert(data).execute()
 
-
 def upload_file_to_supabase(file):
+    """Lädt ein Bild in den Supabase Bucket hoch."""
     bucket_name = "uploaded_images"
     
     unique_name = f"{uuid.uuid4()}_{file.name}"
@@ -55,14 +54,26 @@ def upload_file_to_supabase(file):
     response = supabase.storage.from_(bucket_name).upload(
         path=unique_name,
         file=file_content,
-        file_options={"upsert": "true"}  # STRING, nicht Boolean!
+        file_options={"upsert": "true"}
     )
 
-    return response
+    return unique_name  # Rückgabe des einzigartigen Namens
 
+def fetch_uploaded_images():
+    """Lädt bereits hochgeladene Bilder aus der Supabase-Datenbank."""
+    response = supabase.table("classifications").select("class_name, created_at").execute()
+    return response.data
 
+def display_uploaded_images():
+    """Zeigt die hochgeladenen Bilder an."""
+    images = fetch_uploaded_images()
+    bucket_url = "https://your-supabase-project-url.supabase.co/storage/v1/object/public/uploaded_images/"  # Ersetze durch deine URL
 
-
+    if images:
+        for item in images:
+            st.image(f"{bucket_url}{item['class_name']}", caption=f"{item['class_name']}, hochgeladen am {item['created_at']}")
+    else:
+        st.write("Keine hochgeladenen Bilder gefunden.")
 
 st.title("Klassifikation von Hüten, Schuhen und Shirts")
 st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
@@ -71,15 +82,15 @@ st.write("Laden Sie ein Bild hoch, um zu sehen, was es ist!")
 uploaded_file = st.file_uploader("Wählen Sie ein Bild aus...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Lade die Datei in den Supabase Bucket hoch
-    upload_response = upload_file_to_supabase(uploaded_file)
+    # Lade das Bild in den Supabase Bucket hoch
+    unique_name = upload_file_to_supabase(uploaded_file)
 
     # Bildverarbeitung
     image_array = load_image(uploaded_file)
     class_name, confidence_score = predict(image_array)
 
     # Ergebnisse speichern
-    save_to_supabase(class_name, confidence_score)
+    save_to_supabase(unique_name, confidence_score)
 
     # Dynamisches Farb-Tag für das Ergebnis
     if confidence_score > 0.7:
@@ -92,3 +103,7 @@ if uploaded_file is not None:
     # Ergebnisse anzeigen
     st.markdown(f"<h3 style='color:{color};'>**Vorhersage:** {class_name}</h3>", unsafe_allow_html=True)
     st.write(f"**Konfidenzscore:** {confidence_score:.2f}")
+
+# Bereits hochgeladene Bilder anzeigen
+st.subheader("Bereits hochgeladene Bilder")
+display_uploaded_images()
