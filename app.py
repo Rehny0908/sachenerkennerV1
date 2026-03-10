@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 from keras.models import load_model
 from PIL import Image, ImageOps
@@ -104,6 +105,20 @@ def fetch_uploaded_images():
 
     return response.data if response.data else []
 
+
+def delete_item(item_id, image_path):
+
+    # delete database entry
+    supabase.table("classifications") \
+        .delete() \
+        .eq("id", item_id) \
+        .execute()
+
+    # delete image from storage
+    supabase.storage \
+        .from_(BUCKET_NAME) \
+        .remove([image_path])
+
 # ==============================
 # HEADER
 # ==============================
@@ -145,24 +160,17 @@ with tab_upload:
 
                 with st.spinner("Analysiere Bild..."):
 
-                    # Upload
                     image_path = upload_file_to_supabase(uploaded_file)
 
-                    # Predict
                     image_array = load_image(uploaded_file)
                     class_name, confidence = predict(image_array)
 
-                    # Save
                     save_to_supabase(class_name, confidence, image_path)
 
                 st.success("Analyse abgeschlossen")
 
-                st.subheader("Ergebnis")
-
                 st.metric("Erkannte Klasse", class_name)
-
                 st.progress(confidence)
-
                 st.write(f"Konfidenz: **{confidence:.2%}**")
 
 # ==============================
@@ -216,7 +224,8 @@ with tab_gallery:
     images = fetch_uploaded_images()
 
     if not images:
-        st.info("Noch keine Bilder hochgeladen")
+        st.info("Noch keine Bilder vorhanden")
+
     else:
 
         cols = st.columns(3)
@@ -237,3 +246,12 @@ with tab_gallery:
                     Konfidenz: {item['confidence_score']:.2f}
                     """
                 )
+
+                if st.button("✅ Abgeholt", key=f"delete_{item['id']}"):
+
+                    delete_item(item["id"], item["image_path"])
+
+                    st.success("Fundstück wurde abgeholt")
+
+                    st.rerun()
+```
