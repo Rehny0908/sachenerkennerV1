@@ -6,6 +6,16 @@ from supabase import create_client
 import uuid
 
 # ==============================
+# PAGE CONFIG
+# ==============================
+
+st.set_page_config(
+    page_title="KI Fundbüro",
+    page_icon="🔎",
+    layout="wide"
+)
+
+# ==============================
 # SUPABASE SETUP
 # ==============================
 
@@ -20,8 +30,13 @@ BUCKET_NAME = "uploaded_images"
 # LOAD MODEL
 # ==============================
 
-model = load_model("keras_model.h5", compile=False)
-class_names = open("labels.txt", "r").readlines()
+@st.cache_resource
+def load_ai():
+    model = load_model("keras_model.h5", compile=False)
+    class_names = open("labels.txt", "r").readlines()
+    return model, class_names
+
+model, class_names = load_ai()
 
 # ==============================
 # IMAGE PREPROCESSING
@@ -30,11 +45,13 @@ class_names = open("labels.txt", "r").readlines()
 def load_image(image_file):
     image = Image.open(image_file).convert("RGB")
     size = (224, 224)
+
     image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
 
     image_array = np.asarray(image)
-    normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
-    return np.expand_dims(normalized_image_array, axis=0)
+    normalized = (image_array.astype(np.float32) / 127.5) - 1
+
+    return np.expand_dims(normalized, axis=0)
 
 # ==============================
 # PREDICTION
@@ -43,15 +60,18 @@ def load_image(image_file):
 def predict(image_array):
     prediction = model.predict(image_array)
     index = np.argmax(prediction)
+
     class_name = class_names[index].strip()
-    confidence_score = float(prediction[0][index])
-    return class_name, confidence_score
+    confidence = float(prediction[0][index])
+
+    return class_name, confidence
 
 # ==============================
 # SUPABASE FUNCTIONS
 # ==============================
 
 def upload_file_to_supabase(file):
+
     unique_name = f"{uuid.uuid4()}_{file.name}"
     file_content = file.getvalue()
 
@@ -65,6 +85,7 @@ def upload_file_to_supabase(file):
 
 
 def save_to_supabase(class_name, confidence_score, image_path):
+
     data = {
         "class_name": class_name,
         "confidence_score": confidence_score,
@@ -75,6 +96,7 @@ def save_to_supabase(class_name, confidence_score, image_path):
 
 
 def fetch_uploaded_images():
+
     response = supabase.table("classifications") \
         .select("*") \
         .order("id", desc=True) \
@@ -83,49 +105,135 @@ def fetch_uploaded_images():
     return response.data if response.data else []
 
 # ==============================
-# UI
+# HEADER
 # ==============================
 
-st.title("Klassifikation von Hüten, Schuhen und Shirts")
-st.write("Lade ein Bild hoch zur Klassifikation.")
+st.title("🔎 KI Fundbüro")
+st.write("Lade ein Bild hoch und lasse die KI das Objekt erkennen.")
 
-uploaded_file = st.file_uploader("Bild auswählen", type=["jpg", "jpeg", "png"])
+# ==============================
+# TABS
+# ==============================
 
-if uploaded_file is not None:
+tab_upload, tab_search, tab_gallery = st.tabs(
+    ["📤 Fundstück melden", "🔍 Suche", "🖼 Galerie"]
+)
 
-    # Upload Image
-    image_path = upload_file_to_supabase(uploaded_file)
+# ==============================
+# TAB 1 - UPLOAD
+# ==============================
 
-    # Predict
-    image_array = load_image(uploaded_file)
-    class_name, confidence_score = predict(image_array)
+with tab_upload:
 
-    # Save to DB
-    save_to_supabase(class_name, confidence_score, image_path)
+    st.subheader("Bild hochladen")
 
-    # Show Result
-    color = "green" if confidence_score > 0.7 else "orange" if confidence_score > 0.5 else "red"
-
-    st.markdown(
-        f"<h3 style='color:{color};'>Vorhersage: {class_name}</h3>",
-        unsafe_allow_html=True
+    uploaded_file = st.file_uploader(
+        "Wähle ein Bild",
+        type=["jpg", "jpeg", "png"]
     )
-    st.write(f"Konfidenz: {confidence_score:.2f}")
+
+    if uploaded_file:
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.image(uploaded_file, caption="Vorschau", use_container_width=True)
+
+        with col2:
+
+            if st.button("KI Klassifikation starten"):
+
+                with st.spinner("Analysiere Bild..."):
+
+                    # Upload
+                    image_path = upload_file_to_supabase(uploaded_file)
+
+                    # Predict
+                    image_array = load_image(uploaded_file)
+                    class_name, confidence = predict(image_array)
+
+                    # Save
+                    save_to_supabase(class_name, confidence, image_path)
+
+                st.success("Analyse abgeschlossen")
+
+                st.subheader("Ergebnis")
+
+                st.metric("Erkannte Klasse", class_name)
+
+                st.progress(confidence)
+
+                st.write(f"Konfidenz: **{confidence:.2%}**")
 
 # ==============================
-# DISPLAY IMAGES
+# TAB 2 - SEARCH
 # ==============================
 
-st.subheader("Bereits hochgeladene Bilder")
+with tab_search:
 
-images = fetch_uploaded_images()
+    st.subheader("Fundstücke durchsuchen")
 
-if images:
-    for item in images:
-        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(item["image_path"])
-        st.image(
-            public_url,
-            caption=f"{item['class_name']} ({item['confidence_score']:.2f})"
-        )
-else:
-    st.write("Noch keine Bilder vorhanden.")
+    images = fetch_uploaded_images()
+
+    classes = list(set([item["class_name"] for item in images])) if images else []
+
+    selected_class = st.selectbox(
+        "Nach Klasse filtern",
+        ["Alle"] + classes
+    )
+
+    filtered = images
+
+    if selected_class != "Alle":
+        filtered = [i for i in images if i["class_name"] == selected_class]
+
+    st.write(f"{len(filtered)} Ergebnisse gefunden")
+
+    cols = st.columns(3)
+
+    for i, item in enumerate(filtered):
+
+        public_url = supabase.storage \
+            .from_(BUCKET_NAME) \
+            .get_public_url(item["image_path"])
+
+        with cols[i % 3]:
+
+            st.image(public_url, use_container_width=True)
+
+            st.caption(
+                f"{item['class_name']} ({item['confidence_score']:.2f})"
+            )
+
+# ==============================
+# TAB 3 - GALLERY
+# ==============================
+
+with tab_gallery:
+
+    st.subheader("Alle Fundstücke")
+
+    images = fetch_uploaded_images()
+
+    if not images:
+        st.info("Noch keine Bilder hochgeladen")
+    else:
+
+        cols = st.columns(3)
+
+        for i, item in enumerate(images):
+
+            public_url = supabase.storage \
+                .from_(BUCKET_NAME) \
+                .get_public_url(item["image_path"])
+
+            with cols[i % 3]:
+
+                st.image(public_url, use_container_width=True)
+
+                st.markdown(
+                    f"""
+                    **{item['class_name']}**  
+                    Konfidenz: {item['confidence_score']:.2f}
+                    """
+                )
