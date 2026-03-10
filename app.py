@@ -254,4 +254,3 @@ with tab_gallery:
                     st.success("Fundstück wurde abgeholt")
 
                     st.rerun()
-```
